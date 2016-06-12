@@ -71,6 +71,7 @@ for(i in 1:length(trainSlices)){
                                data = train[trainSlices[[i]],],
                                method = "knn",
                                metric = "SAE",
+                               maximize = FALSE,
                                preProc = c("center", "scale"),
                                trControl=tControl)
   pred[i]  <- predict(knnFitTimeLaggedSAE,train[testSlices[[i]],])
@@ -81,7 +82,7 @@ for(i in 1:length(trainSlices)){
   #   points(pred, col = "blue") 
 }
 
-sum(abs(true-pred)) #15.86493
+sum(abs(true-pred)) #14.71826
 
 knnPlot<-plot(true, col = "red", ylab = "true (red) , pred (blue)", main = "Plot of S1 True Values Vs Predicted Values by knn", ylim = range(c(pred,true))); points(pred, col = "blue") 
 
@@ -100,3 +101,4 @@ varimplagged
 # submit$mean<-(.50*submit$knnvalue+0.50*submit$pred)
 # sum(abs(submit$true-submit$mean)) 
 # plot(submit$true, col = "red", ylab = "true (red) , pred (blue)", main = "Plot of S1 True Values Vs Predicted Values by knn", ylim = range(c(submit$mean,submit$true))); points(submit$mean, col = "blue") 
+#write.csv(submit,file="submit.csv")
