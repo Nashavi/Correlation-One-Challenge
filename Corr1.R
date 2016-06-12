@@ -32,20 +32,20 @@ points(pred, col = "blue")
 pred<-NULL
 true<-NULL
 for(i in 1:length(trainSlices)){
-  plsFitTime <- train(unemploy ~ pce + pop + psavert,
-                      data = economics[trainSlices[[i]],],
+  plsFitTime <- train(S1 ~ S2+S3+S4+S5+S6+S7+S8+S9+S10,
+                      data = train[trainSlices[[i]],],
                       method = "pls",
                       preProc = c("center", "scale"))
-  pred[i]  <- predict(plsFitTime,economics[testSlices[[i]],])
+  pred[i]  <- predict(plsFitTime,train[testSlices[[i]],])
   
   
-  true[i] <- economics$unemploy[testSlices[[i]]]
+  true[i] <- train$S1[testSlices[[i]]]
   #   plot(true, col = "red", ylab = "true (red) , pred (blue)", 
   #        main = i, ylim = range(c(pred,true)))
   #   points(pred, col = "blue") 
 }
 
-sum(true)-sum(pred)
+sum(abs(true-pred)) #15.07404
 
 plsPlot<-plot(true, col = "red", ylab = "true (red) , pred (blue)", main = "Plot of S1 True Values Vs Predicted Values", ylim = range(c(pred,true))); points(pred, col = "blue") 
 
