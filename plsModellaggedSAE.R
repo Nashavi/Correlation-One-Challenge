@@ -72,6 +72,7 @@ for(i in 1:length(trainSlices)){
                             method = "pls",
                             metric = "SAE",
                             preProc = c("center", "scale"),
+                            maximize = FALSE,
                             trControl=tControl)
   pred[i]  <- predict(plsFitTimeLaggedSAE,train[testSlices[[i]],])
   
@@ -81,7 +82,7 @@ for(i in 1:length(trainSlices)){
   #   points(pred, col = "blue") 
 }
 
-sum(abs(true-pred)) #15.6511
+sum(abs(true-pred)) #11.6267
 
 plsPlot<-plot(true, col = "red", ylab = "true (red) , pred (blue)", main = "Plot of S1 True Values Vs Predicted Values by pls", ylim = range(c(pred,true))); points(pred, col = "blue") 
 
