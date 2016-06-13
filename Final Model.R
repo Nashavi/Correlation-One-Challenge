@@ -162,3 +162,9 @@ submit$meanvalue<-(.30*submit$PLSpred+.10*submit$KNNpred+.60*submit$RFpred)
 Overall_SAE<-sum(abs(submit$true-submit$meanvalue))
 
 write.csv(submit,"submit.csv")
+
+
+FinalPlot<-plot(submit$true, col = "red", ylab = "true values(red) , PLS preds (blue)", main = "Plot of S1 True Values Vs Predicted Values by final weighted model", ylim = range(c(submit$meanvalue,submit$true))); points(submit$meanvalue, col = "blue") 
+
+
+predict()
