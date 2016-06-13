@@ -42,15 +42,12 @@ rawdata<-slide(rawdata, Var = "S9", NewVar= "S9Lag3",slideBy = -lag)
 rawdata<-slide(rawdata, Var = "S10", NewVar= "S10Lag3",slideBy = -lag)
 
 #### Split train and test ####
-train<-rawdata[1:50,]
-test<-rawdata[51:100,]
+train<-rawdata[1:100,]
+
 
 ### Create custom metric - Sum of Absolute Deviations ####
-SAESummary <- function (data,
-                        lev = NULL,
-                        model = NULL) {
-  out <- sum(abs(data$obs - data$pred), 
-             na.rm = TRUE) 
+SAESummary <- function (data,lev = NULL,model = NULL) {
+  out <- sum(abs(data$obs - data$pred),na.rm = TRUE) 
   names(out) <- "SAE"
   out
 }
@@ -64,107 +61,90 @@ str(tsFixed,max.level = 1)
 trainSlicesF <- tsFixed[[1]]
 testSlicesF <- tsFixed[[2]]
 
-#### Partial Least Squares Model train and predict ####
-PLSpred<-NULL
-true<-NULL
-for(i in 1:length(trainSlicesF)){
-  plsFit<- train(S1 ~  . -date,
-                               data = train[trainSlicesF[[i]],],
-                               method = "pls",
-                               metric = "SAE",
-                               preProc = c("center", "scale"),
-                               maximize = FALSE,
-                               trControl=tc)
-  PLSpred[i]  <- predict(plsFit,train[testSlicesF[[i]],])
-  true[i] <- train$S1[testSlicesF[[i]]]
-}
-
-#### Sum of Absolute Deviations for PLS model ####
-PLS_SAE<-sum(abs(true-PLSpred))
-
-
-#### PLSmodel plot vs true values ####
-plsPlot<-plot(true, col = "red", ylab = "true values(red) , PLS preds (blue)", main = "Plot of S1 True Values Vs Predicted Values by PLS", ylim = range(c(PLSpred,true))); points(PLSpred, col = "blue") 
-
-#### PLS Variable Importance measures ####
-PLSvarimp<-varImp(plsFit)
-
-####Create prediction file ####
-submit<-data.frame(train$date[16:50],true,PLSpred)
-
 #### Create TimeSlices with Non-Fixed Windows (For KNN & RF) ####
 tsNonFixed <- createTimeSlices(1:nrow(train),initialWindow = 15, horizon = 1, fixedWindow = F)
 str(tsNonFixed,max.level = 1)
 trainSlicesNF <- tsNonFixed[[1]]
 testSlicesNF <- tsNonFixed[[2]]
 
-#### K-Nearest Neighbour Model train and predict ####
-KNNpred<-NULL
-true<-NULL
-for(i in 1:length(trainSlicesNF)){
-  knnFit <- train(S1 ~  . -date,
-                               data = train[trainSlicesNF[[i]],],
-                               method = "knn",
-                               metric = "SAE",
-                               maximize = FALSE,
-                               preProc = c("center", "scale"),
-                               trControl=tc)
-  KNNpred[i]  <- predict(knnFit,train[testSlicesNF[[i]],])
-  true[i] <- train$S1[testSlicesNF[[i]]]
-}
-
-#### Sum of Absolute Deviations for KNN model ####
-KNN_SAE<-sum(abs(true-KNNpred))
-
-#### KNN model plot vs true values ####
-points(KNNpred, col = "green") 
-
-#### KNN Variable Importance measures ####
-KNNvarimp<-varImp(knnFit)
-
-####Write to prediction file ####
-submit$KNNpred<-KNNpred
-
 #### Random Forest Tuning Parameters ####
 RFtc <- trainControl(method = "repeatedcv",number = 10, repeats = 3,summaryFunction = SAESummary)
 grid = expand.grid(mtry = c(6,8,10,12,14,15,16,18))
 
-#### Random Forest Model train and predict ####
+#### Modelling and Prediction ####
+PLSpred<-NULL
+KNNpred<-NULL
 RFpred<-NULL
 true<-NULL
-for(i in 1:length(trainSlicesNF)){
+wghtdPred<-NULL
+for(i in 1:length(trainSlicesF)){ #length of trainSlicesF and trainSlicesNF are the same
+  
+  #### Partial Least Squares Model train and predict ####
+  plsFit<- train(S1 ~  . -date,
+                 data = train[trainSlicesF[[i]],],
+                 method = "pls",
+                 metric = "SAE",
+                 preProc = c("center", "scale"),
+                 maximize = FALSE,
+                 trControl=tc)
+  PLSpred[i]  <- predict(plsFit,train[testSlicesF[[i]],])
+  true[i] <- train$S1[testSlicesF[[i]]]
+  
+  
+  #### K-Nearest Neighbour Model train and predict ####
+  knnFit <- train(S1 ~  . -date,
+                  data = train[trainSlicesNF[[i]],],
+                  method = "knn",
+                  metric = "SAE",
+                  maximize = FALSE,
+                  preProc = c("center", "scale"),
+                  trControl=tc)
+  KNNpred[i]  <- predict(knnFit,train[testSlicesNF[[i]],])
+  true[i] <- train$S1[testSlicesNF[[i]]]
+  
+  #### Random Forest Model train and predict ####
   rfFit <- train(S1 ~  . -date,
-                              data = train[trainSlicesNF[[i]],],
-                              method = "rf",
-                              metric = "SAE",
-                              preProc = c("center", "scale"),
-                              tuneGrid = grid,
-                              maximize = FALSE,
-                              trControl=RFtc)
+                 data = train[trainSlicesNF[[i]],],
+                 method = "rf",
+                 metric = "SAE",
+                 preProc = c("center", "scale"),
+                 tuneGrid = grid,
+                 maximize = FALSE,
+                 trControl=RFtc)
   RFpred[i]  <- predict(rfFit,train[testSlicesNF[[i]],])
   true[i] <- train$S1[testSlicesNF[[i]]]
+  
+  #calculates the weighted predictions
+  wghtdPred[i+1]<-(.30*PLSpred[i]+.10*KNNpred[i]+.60*RFpred[i])
+  
+  #This nested if function, determines and overwrites the missing S1 values with the predicted S1 values in each loop
+  if (i<70) {
+    train[trainSlicesF[[i+16]],]$S1[1]<-
+                      ifelse(i+15>49, wghtdPred[i+1],train[trainSlicesF[[i+16]],]$S1[1])
+    train[trainSlicesNF[[i+16]],]$S1[1]<-
+                      ifelse(i+15>49, wghtdPred[i+1],train[trainSlicesNF[[i+16]],]$S1[1])
+  } else {
+    if (i<84) {
+    train[trainSlicesNF[[85]],]$S1[i+16]<-wghtdPred[i+1]
+    }
+  }
 }
 
-#### Sum of Absolute Deviations for RF model ####
-RF_SAE<-sum(abs(true-RFpred))
 
-#### RF model plot vs true values ####
-points(RFpred, col = "yellow") 
+#### Sum of Absolute Deviations for different models (for the observations 16 to 50 having true values)####
+PLS_SAE<-sum(abs(true[1:35]-PLSpred[1:35]))
+KNN_SAE<-sum(abs(true[1:35]-KNNpred[1:35]))
+RF_SAE<-sum(abs(true[1:35]-RFpred[1:35]))
 
-#### RF Variable Importance measures ####
-RFvarimp<-varImp(rfFit)
+#### Model plots vs true values ####
+ModelPlot<-plot(true[1:35], col = "red", pch=16, ylab = "True Values(Red) , Wghtd Preds (Blue)", xlab = "Observations", main = "Plot of S1 True Values Vs Predicted Values \n by weighted model"); #points(PLSpred, col = "yellow"); points(KNNpred, col = "green");
+points(wghtdPred[1:35], col = "blue",pch=16)
 
-####Write to prediction file ####
-submit$RFpred<-RFpred
+#### PLot for the predicted values ####
+PredictedPlot<-plot(wghtdPred[35:84], col = "red", pch=16, ylab = "Weighted Predictions", xlab = "Observations", main = "Plot of S1 Predicted Values \n by weighted model")
 
-head(submit)
-submit$meanvalue<-(.30*submit$PLSpred+.10*submit$KNNpred+.60*submit$RFpred)
-Overall_SAE<-sum(abs(submit$true-submit$meanvalue))
-
-write.csv(submit,"submit.csv")
-
-
-FinalPlot<-plot(submit$true, col = "red", ylab = "true values(red) , PLS preds (blue)", main = "Plot of S1 True Values Vs Predicted Values by final weighted model", ylim = range(c(submit$meanvalue,submit$true))); points(submit$meanvalue, col = "blue") 
-
-
-predict()
+####Create prediction file ####
+submit<-data.frame(train$date[51:100],wghtdPred[35:84])
+names(submit)=c("Dates","Values")
+submit
+write.csv(submit,"predictions.csv",row.names = F)
