@@ -63,7 +63,7 @@ saeSummary <- function (data,
 }
 
 tControl <- trainControl(method = "repeatedcv",number = 10, repeats = 3,summaryFunction = saeSummary)
-newGrid = expand.grid(mtry = c(2,4,8,15))
+newGrid = expand.grid(mtry = c(6,8,10,12,14,15,16,18))
 
 pred<-NULL
 true<-NULL
@@ -105,7 +105,8 @@ rfFitTimeLaggedSAE
 sub<-read.csv("submit.csv")
 sub$rfvalues<-pred
 head(sub)
-sub$mean<-(sub$pred+sub$knnvalue+sub$rfvalues)/3
-sum(abs(sub$true-sub$mean)) #10.94994
+sub$mean<-(.30*sub$pred+.10*sub$knnvalue+.60*sub$rfvalues)
+sum(abs(sub$true-sub$mean)) #10.30841
 
-
+sub$mean2<-(sub$pred+sub$rfvalues)/2
+sum(abs(sub$true-sub$mean2)) #10.4891
